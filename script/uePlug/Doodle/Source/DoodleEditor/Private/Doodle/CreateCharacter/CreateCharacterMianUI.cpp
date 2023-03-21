@@ -4,6 +4,9 @@
 #include "CreateCharacterCurveEditor.h"
 #include "CreateCharacterSliderController.h"
 #include "CreateCharacterTree.h"
+#include "FrameNumberNumericInterface.h"
+#include "Preferences/PersonaOptions.h"
+
 #include "Doodle/CreateCharacter/CoreData/DoodleCreateCharacterConfig.h"
 
 #define LOCTEXT_NAMESPACE "FCreateCharacterMianUI"

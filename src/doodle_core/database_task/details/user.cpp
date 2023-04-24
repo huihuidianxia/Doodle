@@ -1,7 +1,6 @@
 #include "user.h"
 
 #include <doodle_core/database_task/details/tool.h>
-#include <doodle_core/generate/core/sql_sql.h>
 #include <doodle_core/logger/logger.h>
 #include <doodle_core/metadata/user.h>
 
@@ -9,7 +8,6 @@
 #include <sqlpp11/sqlpp11.h>
 
 namespace doodle::database_n {
-namespace sql = doodle_database;
 
 void sql_com<doodle::user>::insert(conn_ptr& in_ptr, const std::vector<entt::entity>& in_id) {
   auto& l_conn   = *in_ptr;
@@ -20,7 +18,7 @@ void sql_com<doodle::user>::insert(conn_ptr& in_ptr, const std::vector<entt::ent
 
   tables::usertab l_tabl{};
 
-  auto l_pre = l_conn.prepare(sqlpp::insert_into(l_tabl).set(
+  auto l_pre = l_conn.prepare(sqlpp::sqlite3::insert_or_replace_into(l_tabl).set(
       l_tabl.user_name        = sqlpp::parameter(l_tabl.user_name),
       l_tabl.permission_group = sqlpp::parameter(l_tabl.permission_group),
       l_tabl.entity_id        = sqlpp::parameter(l_tabl.entity_id)
@@ -33,34 +31,7 @@ void sql_com<doodle::user>::insert(conn_ptr& in_ptr, const std::vector<entt::ent
     l_pre.params.entity_id        = boost::numeric_cast<std::int64_t>(l_h.get<database>().get_id());
 
     auto l_r                      = l_conn(l_pre);
-    DOODLE_LOG_INFO("插入数据库id {} -> 实体 {} 组件 {} ", l_r, l_h.entity(), rttr::type::get<user>().get_name());
-  }
-}
-
-void sql_com<doodle::user>::update(conn_ptr& in_ptr, const std::vector<entt::entity>& in_id) {
-  auto& l_conn   = *in_ptr;
-  auto l_handles = in_id | ranges::views::transform([&](entt::entity in_entity) {
-                     return entt::handle{*reg_, in_entity};
-                   }) |
-                   ranges::to_vector;
-
-  tables::usertab l_tabl{};
-
-  auto l_pre = l_conn.prepare(sqlpp::update(l_tabl)
-                                  .set(
-                                      l_tabl.user_name        = sqlpp::parameter(l_tabl.user_name),
-                                      l_tabl.permission_group = sqlpp::parameter(l_tabl.permission_group)
-                                  )
-                                  .where(l_tabl.entity_id == sqlpp::parameter(l_tabl.entity_id)));
-
-  for (auto& l_h : l_handles) {
-    auto& l_user                  = l_h.get<user>();
-    l_pre.params.user_name        = l_user.p_string_;
-    l_pre.params.permission_group = enum_to_num(l_user.power);
-    l_pre.params.entity_id        = boost::numeric_cast<std::int64_t>(l_h.get<database>().get_id());
-
-    auto l_r                      = l_conn(l_pre);
-    DOODLE_LOG_INFO("更新数据库id {} -> 实体 {} 组件 {} ", l_r, l_h.entity(), rttr::type::get<user>().get_name());
+    DOODLE_LOG_INFO("插入数据库id {} -> 实体 {} 组件 {} ", l_r, l_h.entity(), entt::type_id<user>().name());
   }
 }
 
@@ -82,7 +53,7 @@ void sql_com<doodle::user>::select(conn_ptr& in_ptr, const std::map<std::int64_t
 
     for (auto& row : l_conn(sqlpp::select(l_tabl.entity_id, l_tabl.user_name, l_tabl.permission_group)
                                 .from(l_tabl)
-                                .where(l_tabl.entity_id.is_null()))) {
+                                .where(l_tabl.entity_id.is_not_null()))) {
       user l_u{};
       l_u.p_string_ = row.user_name.value();
       l_u.power     = num_to_enum<power_enum>(row.permission_group.value());
@@ -96,7 +67,7 @@ void sql_com<doodle::user>::select(conn_ptr& in_ptr, const std::map<std::int64_t
         DOODLE_LOG_INFO("选择数据库id {} 未找到实体", l_id);
       }
     }
-    reg_->insert(l_entts.begin(), l_entts.end(), l_works.begin());
+    reg_->insert<doodle::user>(l_entts.begin(), l_entts.end(), l_works.begin());
   }
 }
 

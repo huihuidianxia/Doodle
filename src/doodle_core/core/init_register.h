@@ -25,7 +25,7 @@ class DOODLE_CORE_API init_register {
   static init_register& instance() noexcept;
 };
 namespace details {
-template <typename T>
+template <typename t>
 struct registrar_lambda {};
 }  // namespace details
 
@@ -49,3 +49,4 @@ struct registrar_lambda {};
   bool ::doodle::details::registrar_lambda<class_name>::registered{                           \
       ::doodle::details::registrar_lambda<class_name>::getInstance()};                        \
   void ::doodle::details::registrar_lambda<class_name>::doodle_reg()
+

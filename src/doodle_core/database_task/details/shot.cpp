@@ -2,7 +2,6 @@
 
 #include <doodle_core/database_task/details/tool.h>
 #include <doodle_core/database_task/sql_com.h>
-#include <doodle_core/generate/core/sql_sql.h>
 #include <doodle_core/logger/logger.h>
 
 #include <algorithm>
@@ -16,7 +15,6 @@
 #include <vector>
 
 namespace doodle::database_n {
-namespace sql = doodle_database;
 void sql_com<doodle::shot>::insert(conn_ptr& in_ptr, const std::vector<entt::entity>& in_id) {
   auto& l_conn   = *in_ptr;
   auto l_handles = in_id | ranges::views::transform([&](entt::entity in_entity) {
@@ -25,7 +23,7 @@ void sql_com<doodle::shot>::insert(conn_ptr& in_ptr, const std::vector<entt::ent
                    ranges::to_vector;
   tables::shot l_table{};
 
-  auto l_pre = l_conn.prepare(sqlpp::insert_into(l_table).set(
+  auto l_pre = l_conn.prepare(sqlpp::sqlite3::insert_or_replace_into(l_table).set(
       l_table.shot_ab = sqlpp::parameter(l_table.shot_ab), l_table.shot_int = sqlpp::parameter(l_table.shot_int),
       l_table.entity_id = sqlpp::parameter(l_table.entity_id)
   ));
@@ -36,34 +34,10 @@ void sql_com<doodle::shot>::insert(conn_ptr& in_ptr, const std::vector<entt::ent
     l_pre.params.shot_ab   = l_shot.get_shot_ab();
     l_pre.params.entity_id = boost::numeric_cast<std::int64_t>(l_h.get<database>().get_id());
     auto l_r               = l_conn(l_pre);
-    DOODLE_LOG_INFO("插入数据库id {} -> 实体 {} 组件 {} ", l_r, l_h.entity(), rttr::type::get<shot>().get_name());
+    DOODLE_LOG_INFO("插入数据库id {} -> 实体 {} 组件 {} ", l_r, l_h.entity(), entt::type_id<shot>().name());
   }
 }
 
-void sql_com<doodle::shot>::update(conn_ptr& in_ptr, const std::vector<entt::entity>& in_id) {
-  auto& l_conn   = *in_ptr;
-  auto l_handles = in_id | ranges::views::transform([&](entt::entity in_entity) {
-                     return entt::handle{*reg_, in_entity};
-                   }) |
-                   ranges::to_vector;
-  tables::shot l_table{};
-
-  auto l_pre = l_conn.prepare(sqlpp::update(l_table)
-                                  .set(
-                                      l_table.shot_ab  = sqlpp::parameter(l_table.shot_ab),
-                                      l_table.shot_int = sqlpp::parameter(l_table.shot_int)
-                                  )
-                                  .where(l_table.entity_id == sqlpp::parameter(l_table.entity_id)));
-  for (auto& l_h : l_handles) {
-    auto& l_shot           = l_h.get<shot>();
-    l_pre.params.shot_ab   = l_shot.get_shot_ab();
-    l_pre.params.shot_int  = l_shot.p_shot;
-    l_pre.params.entity_id = boost::numeric_cast<std::int64_t>(l_h.get<database>().get_id());
-
-    auto l_r               = l_conn(l_pre);
-    DOODLE_LOG_INFO("更新数据库id {} -> 实体 {} 组件 {} ", l_r, l_h.entity(), rttr::type::get<shot>().get_name());
-  }
-}
 void sql_com<doodle::shot>::select(conn_ptr& in_ptr, const std::map<std::int64_t, entt::entity>& in_handle) {
   auto& l_conn = *in_ptr;
   tables::shot l_table{};
@@ -79,7 +53,7 @@ void sql_com<doodle::shot>::select(conn_ptr& in_ptr, const std::map<std::int64_t
 
   for (auto& row : l_conn(sqlpp::select(l_table.entity_id, l_table.shot_ab, l_table.shot_int)
                               .from(l_table)
-                              .where(l_table.entity_id.is_null()))) {
+                              .where(l_table.entity_id.is_not_null()))) {
     shot l_s{};
     l_s.p_shot      = row.shot_int.value();
     l_s.p_shot_ab   = row.shot_ab.value();
@@ -93,7 +67,7 @@ void sql_com<doodle::shot>::select(conn_ptr& in_ptr, const std::map<std::int64_t
       DOODLE_LOG_INFO("选择数据库id {} 未找到实体", l_id);
     }
   }
-  reg_->insert(l_entts.begin(), l_entts.end(), l_shot.begin());
+  reg_->insert<doodle::shot>(l_entts.begin(), l_entts.end(), l_shot.begin());
 }
 void sql_com<doodle::shot>::destroy(conn_ptr& in_ptr, const std::vector<std::int64_t>& in_handle) {
   detail::sql_com_destroy<tables::shot>(in_ptr, in_handle);

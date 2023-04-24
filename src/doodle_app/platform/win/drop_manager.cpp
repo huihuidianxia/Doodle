@@ -5,7 +5,10 @@
 #include "drop_manager.h"
 
 #include <doodle_core/core/core_sig.h>
+#include <doodle_core/lib_warp/std_fmt_bitset.h>
 #include <doodle_core/logger/logger.h>
+
+#include <doodle_app/lib_warp/imgui_warp.h>
 
 #include <Windows.h>
 #include <imgui.h>
@@ -18,7 +21,9 @@ ULONG drop_manager::AddRef() { return InterlockedIncrement(&m_RefCount); }
 
 ULONG drop_manager::Release() {
   auto nTemp = InterlockedDecrement(&m_RefCount);
-  if (!nTemp) delete this;
+  if (!nTemp) {
+    delete this;
+  }
   return nTemp;
 }
 STDMETHODIMP drop_manager::QueryInterface(const IID &riid, void **ppv) {
@@ -33,8 +38,7 @@ STDMETHODIMP drop_manager::QueryInterface(const IID &riid, void **ppv) {
 
 STDMETHODIMP drop_manager::DragEnter(IDataObject *pdto, DWORD grfKeyState, POINTL ptl, DWORD *pdwEffect) {
   DOODLE_LOG_INFO("开始 DragEnter");
-  begin_drop     = true;
-
+  begin_drop_    = true;
   // 使用 fmte
   FORMATETC fmte = {CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL};
   STGMEDIUM stgm{};
@@ -53,22 +57,41 @@ STDMETHODIMP drop_manager::DragEnter(IDataObject *pdto, DWORD grfKeyState, POINT
     }
     DOODLE_LOG_INFO("查询到文件拖拽 :\n{}", fmt::join(l_vector, "\n"));
     ReleaseStgMedium(&stgm);
-    drop_files = l_vector;
+    *drop_files = l_vector;
   }
   *pdwEffect &= DROPEFFECT_COPY;
+
+  ImGuiIO &io = ImGui::GetIO();
+  //  bool const want_absolute_pos = (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) != 0;
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  io.AddMousePosEvent(boost::numeric_cast<std::float_t>(ptl.x), boost::numeric_cast<std::float_t>(ptl.y));
+
   return S_OK;
 }
 
 STDMETHODIMP drop_manager::DragOver(DWORD grfKeyState, POINTL ptl, DWORD *pdwEffect) {
   *pdwEffect &= DROPEFFECT_COPY;
-  if (drag_over_fun) drag_over_fun(grfKeyState, ptl);
+  begin_drop_ = true;
+
+  ImGuiIO &io = ImGui::GetIO();
+  //  bool const want_absolute_pos = (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) != 0;
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  io.AddMousePosEvent(boost::numeric_cast<std::float_t>(ptl.x), boost::numeric_cast<std::float_t>(ptl.y));
+
   return S_OK;
 }
 
 STDMETHODIMP drop_manager::DragLeave() {
-  DOODLE_LOG_INFO("结束 DragLeave");
+  //  SHORT l_state = ::GetAsyncKeyState(VK_LBUTTON);
+  //  DOODLE_LOG_INFO("结束 DragLeave {}{}", l_state & 0x10, l_state & 0x01);
+  DOODLE_LOG_INFO("结束 DragLeave ");
+  drop_files->clear();
 
-  begin_drop = false;
+  ImGuiIO &io = ImGui::GetIO();
+  //  bool const want_absolute_pos = (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) != 0;
+  io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  begin_drop_ = false;
   return S_OK;
 }
 
@@ -96,18 +119,32 @@ STDMETHODIMP drop_manager::Drop(IDataObject *pdto, DWORD grfKeyState, POINTL ptl
     // 完成后我们必须释放数据
     ReleaseStgMedium(&stgm);
 
-    std::swap(drop_files, l_vector);
-    // 以某种方式通知我们的应用程序我们已经完成了文件的拖动（以某种方式提供数据）
-    g_reg()->ctx().at<core_sig>().drop_files(l_vector);
+    *drop_files = l_vector;
   }
 
   // 为 ImGui 中的按钮 1 触发 MouseUp
-  ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false);
-  begin_drop = false;
+
+  ImGuiIO &io = ImGui::GetIO();
+  //  bool const want_absolute_pos = (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) != 0;
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  io.AddMousePosEvent(boost::numeric_cast<std::float_t>(ptl.x), boost::numeric_cast<std::float_t>(ptl.y));
+
+  // 以某种方式通知我们的应用程序我们已经完成了文件的拖动（以某种方式提供数据）
+  begin_drop_ = false;
+
   *pdwEffect &= DROPEFFECT_COPY;
   return S_OK;
 }
-const std::vector<FSys::path> &drop_manager::GetDropFiles() const { return drop_files; }
+
+void drop_manager::render() {
+  if (begin_drop_)
+    dear::DragDropSource{ImGuiDragDropFlags_SourceExtern} && [&]() {
+      ImGui::SetDragDropPayload(
+          doodle::doodle_config::drop_imgui_id.data(), drop_files.get(), sizeof(std::vector<FSys::path>)
+      );
+      dear::Tooltip{} && [&]() { dear::Text(fmt::format("{}", fmt::join(*drop_files, "\n"))); };
+    };
+}
 
 ole_guard::ole_guard() {
   auto k_r = ::OleInitialize(nullptr);

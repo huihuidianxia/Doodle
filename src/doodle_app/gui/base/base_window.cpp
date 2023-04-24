@@ -6,11 +6,12 @@
 
 #include <doodle_core/core/core_set.h>
 #include <doodle_core/core/init_register.h>
-#include <doodle_core/platform/win/drop_manager.h>
 
 #include <doodle_app/app/app_command.h>
 #include <doodle_app/gui/base/ref_base.h>
 
+#include "imgui.h"
+#include "platform/win/drop_manager.h"
 #include "range/v3/action/remove_if.hpp"
 #include "range/v3/action/sort.hpp"
 #include <any>
@@ -31,12 +32,10 @@ class windows_manage::warp_w {
   explicit warp_w(windows_init_arg in_arg) : args_(std::move(in_arg)) {}
 
   bool render() {
-    //    std::call_once(once_flag_size_, [this]() { ImGui::SetNextWindowSize({args_.size_xy_[0], args_.size_xy_[1]});
-    //    });
-
     switch (args_.render_enum_) {
       case windows_init_arg::render_enum::kpopup:
-        ImGui::SetNextWindowSize({args_.size_xy_[0], args_.size_xy_[1]});
+        ImGui::SetNextWindowSize({args_.size_xy_[0], args_.size_xy_[1]}, ImGuiCond_Once);
+        //        ImGui::SetNextWindowSize({args_.size_xy_[0], args_.size_xy_[1]});
         break;
       case windows_init_arg::render_enum::kbegin:
         //        break;
@@ -85,15 +84,7 @@ void windows_manage::tick() {
   }
   layout_->render();
 
-  if (*drop_manger_) {
-    dear::DragDropSource{ImGuiDragDropFlags_SourceExtern} && [&]() {
-      drop_list_files_ = drop_manger_->GetDropFiles();
-      ImGui::SetDragDropPayload(
-          doodle::doodle_config::drop_imgui_id.data(), &drop_list_files_, sizeof(std::vector<FSys::path>)
-      );
-      dear::Tooltip{} && [&]() { dear::Text(fmt::format("{}", fmt::join(drop_list_files_, "\n"))); };
-    };
-  }
+  drop_manger_->render();
 
   const render_guard l_g{this};
   const auto l_org_list = windows_list_.size();

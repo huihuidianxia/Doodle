@@ -1,8 +1,10 @@
 //
-// Created by td_main on 2023/3/31.
+// Created by td_main on 2023/4/24.
 //
 
-#include "asset_library_layout.h"
+#include "solving_fabric_layout.h"
+
+#include "doodle_core/configure/static_value.h"
 
 #include <doodle_lib/gui/layout_window.h>
 #include <doodle_lib/gui/menu_bar.h>
@@ -23,10 +25,9 @@
 
 #include <imgui.h>
 #include <imgui_internal.h>
-
 namespace doodle::gui {
 
-void asset_library_layout::layout(ImGuiID in_id, const ImVec2& in_size) {
+void solving_fabric_layout::layout(ImGuiID in_id, const ImVec2& in_size) {
   const static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_PassthruCentralNode;
 
   ImGui::DockBuilderAddNode(in_id, dockspace_flags | ImGuiDockNodeFlags_DockSpace);
@@ -36,31 +37,32 @@ void asset_library_layout::layout(ImGuiID in_id, const ImVec2& in_size) {
    */
   auto dock_id_tools  = in_id;
   auto dock_id_filter = ImGui::DockBuilderSplitNode(in_id, ImGuiDir_Left, 0.2f, nullptr, &dock_id_tools);
-  auto dock_id_edit   = ImGui::DockBuilderSplitNode(dock_id_tools, ImGuiDir_Left, 0.8f, nullptr, &dock_id_tools);
+  auto dock_id_edit   = ImGui::DockBuilderSplitNode(dock_id_tools, ImGuiDir_Down, 0.8f, nullptr, &dock_id_tools);
 
   // 开始将窗口停靠在创建的窗口中
   namespace menu_w    = gui::config::menu_w;
-  ImGui::DockBuilderDockWindow(menu_w::assets_filter.data(), dock_id_filter);  /// \brief 过滤器的停靠
-  ImGui::DockBuilderDockWindow(menu_w::edit_.data(), dock_id_tools);           /// \brief 编辑的停靠
+  ImGui::DockBuilderDockWindow(menu_w::project_edit.data(), dock_id_filter);   /// \brief 项目配置
+  ImGui::DockBuilderDockWindow(menu_w::long_time_tasks.data(), dock_id_edit);  /// \brief maya工具
 
-  ImGui::DockBuilderDockWindow(menu_w::assets_file.data(), dock_id_edit);  /// \brief 主窗口的停靠
+  ImGui::DockBuilderDockWindow(menu_w::comm_maya_tool.data(), dock_id_tools);  /// \brief 长时间
 
   ImGui::DockBuilderFinish(in_id);
 }
 
-void asset_library_layout::set_show() {
-  g_windows_manage().open_windows<edit_widgets>();
-  g_windows_manage().open_windows<assets_filter_widget>();
-  g_windows_manage().open_windows<assets_file_widgets>();
+void solving_fabric_layout::set_show() {
+  g_windows_manage().open_windows<maya_tool>();
+  g_windows_manage().open_windows<long_time_tasks_widget>();
+  g_windows_manage().open_windows<project_edit>();
 
-  g_windows_manage().close_windows<maya_tool>();
+  g_windows_manage().close_windows<edit_widgets>();
+  g_windows_manage().close_windows<assets_filter_widget>();
+  g_windows_manage().close_windows<assets_file_widgets>();
   g_windows_manage().close_windows<create_video>();
   g_windows_manage().close_windows<extract_subtitles_widgets>();
   g_windows_manage().close_windows<subtitle_processing>();
-  g_windows_manage().close_windows<long_time_tasks_widget>();
   g_windows_manage().close_windows<time_sequencer_widget>();
   g_windows_manage().close_windows<xlsx_export_widgets>();
   g_windows_manage().close_windows<setting_windows>();
-  g_windows_manage().close_windows<project_edit>();
 }
+
 }  // namespace doodle::gui
